@@ -1,12 +1,5 @@
 //-------------------------------------------------------------------
-// testHepMC.cc.in
-//
-// garren@fnal.gov, March 2006
-// based on example_EventSelection
-// Apply an event selection to the events in testHepMC.input
-// Events containing a photon of pT > 25 GeV pass the selection
-// and are written to "testHepMC.out"
-// Also write events using IO_AsciiParticles 
+// Copy this file into your HEPMCDIR/test/ and compile it
 //-------------------------------------------------------------------
 //
 
@@ -24,29 +17,26 @@
 #include "IsGoodEvent.h"
 #include "testHepMCMethods.h"
 #include <sstream>
+#include <fstream>
 #include <list>
 #include <cmath>
+#include <iostream>
 
-//void read_testIOGenEvent(std::ostream & os);
-//void read_testUnits(std::ostream & os);
-//void read_variousFormats(std::ostream & os);
-//void writeWithCrossSection(std::ostream & os);
-//void readWithCrossSection(std::ostream & os);
-//void writeWithWeight(std::ostream & os);
-//void readWithWeight(std::ostream & os);
-//void read_nan(std::ostream & os);
 
 void find_protons();
-void my_main();
+void my_main(std::string hepmcfile, const char * texfile,int n);
 std::vector<HepMC::GenParticle*> get_in_particles(HepMC::GenEvent* evt);
 std::vector<HepMC::GenParticle*> get_interm_particles(HepMC::GenEvent* evt);
 std::vector<HepMC::GenParticle*> get_out_particles(HepMC::GenEvent* evt);
-void print_latex(HepMC::GenEvent* evt);
-void print_latex_in_particles(std::vector <HepMC::GenParticle*> in_p);
-void print_latex_beam_particles(std::vector <HepMC::GenParticle*> beam_p);
-void print_latex_interm_particles(std::vector <HepMC::GenParticle*> interm_p,std::map<HepMC::GenVertex *, int> level_map, HepMC::GenEvent * evt);
-//void print_latex_out_particles(std::vector <HepMC::GenParticle*> out_p, HepMC::GenEvent * evt);
-void print_latex_out_particles(std::vector <HepMC::GenParticle*> out_p, std::map<HepMC::GenVertex *, int> level_map, HepMC::GenEvent * evt);
+void print_latex(HepMC::GenEvent* evt,std::ostream & os);
+//void print_latex_in_particles(std::vector <HepMC::GenParticle*> in_p);
+void print_latex_beam_particles(std::vector <HepMC::GenParticle*> beam_p,std::ostream & os);
+void print_latex_interm_particles(std::vector <HepMC::GenParticle*> interm_p,std::map<HepMC::GenVertex *, 
+                int> level_map, HepMC::GenEvent * evt,std::ostream & os );
+void print_latex_out_particles(std::vector <HepMC::GenParticle*> out_p, std::map<HepMC::GenVertex *, int> level_map, 
+                HepMC::GenEvent * evt, std::ostream & os);
+void print_latex_doc_default_begin(std::ostream & os);
+void print_latex_doc_default_end(std::ostream & os);
 std::string  pdg_to_line(int pdg_id);
 HepMC::GenEvent  strip_event(HepMC::GenEvent* evt);
 void recur_copy_particles(HepMC::GenVertex * v_in, HepMC::GenEvent* evt);
@@ -60,26 +50,30 @@ bool interesting_end_vertex(HepMC::GenParticle * p);
 void recursive_sort_out_particles(HepMC::GenVertex * curr_v, int curr_lev, 
                                         std::map<HepMC::GenVertex *, int > & v_map, std::vector<HepMC::GenParticle* > & p_out );
 
-int main() { 
-//    std::ofstream os( "testHepMC.cout" );
-//    std::ofstream osv( "testHepMCVarious.cout" );
-//    find_protons();
-    my_main();
-//    read_testIOGenEvent(os);
-//    read_testUnits(os);
-//    read_variousFormats(osv);
-//    read_nan(os);
-//    writeWithCrossSection(os);
-//    readWithCrossSection(os);
-//    writeWithWeight(os);
-//    readWithWeight(os);
+
+int main(int argc, char* argv[]){
+    char ch;
+    std::string hepmcfile;
+    char * outfile = "";
+    int n;
+    while ( ( ch = getopt(argc,argv, "i:n:o:") ) != -1 ) {
+        switch (ch) {
+            case 'i': hepmcfile   = optarg ;break;
+            case 'o': outfile     = optarg ;break;
+            case 'n': n           = atoi(optarg); break;
+            default: std::cerr << "*** Error: unknown option " << optarg << std::endl;
+        }
+    }
+    const char * texfile = outfile;
+    if (!(argc==7)) std::cerr << "*** Error: give two arguments" << std::endl;
+    else my_main(hepmcfile,texfile , n);
     return 0;
 }
 
-void my_main(){
-    HepMC::IO_GenEvent my_events( "./pythia-output.hepmc" ,std::ios::in);
-//    HepMC::IO_GenEvent my_events( "./testFlow.out3" ,std::ios::in);
-//    HepMC::IO_GenEvent my_events( "./testIOGenEvent.input" ,std::ios::in);
+void my_main(std::string hepmcfile, const char * tex_file ,int n){
+    HepMC::IO_GenEvent my_events( hepmcfile ,std::ios::in);
+    std::ofstream latex_stream ( tex_file );
+
     my_events.use_input_units( HepMC::Units::GEV, HepMC::Units::MM );
     HepMC::GenEvent* evt = my_events.read_next_event();
 ////////////////// WHILE lOOP 
@@ -88,10 +82,11 @@ void my_main(){
 //        std::cout << std::endl << std::endl << "Event: " << count << std::endl << std::endl;
         count ++;
 ///////////////////////////
-        if (count==25){
+        if (count==n){
+//            evt->print();
             evt->print();
             HepMC::GenEvent* strip_evt = new HepMC::GenEvent(strip_event(evt));
-            print_latex(strip_evt);
+            print_latex(strip_evt,latex_stream);
         }
 //////////////// WHILE LOOP ///////////////
 	    delete evt;
@@ -101,78 +96,6 @@ void my_main(){
 }
 
 
-
-
-void find_protons(){
-    HepMC::IO_GenEvent my_events( "./pythia-output.hepmc" ,std::ios::in);
-//    HepMC::IO_GenEvent my_events( "./testFlow.out3" ,std::ios::in);
-//    HepMC::IO_GenEvent my_events( "./testIOGenEvent.input" ,std::ios::in);
-    my_events.use_input_units( HepMC::Units::GEV, HepMC::Units::MM );
-    //loop over events
-    HepMC::GenEvent* evt = my_events.read_next_event();
-    HepMC::GenEvent* strip_evt = new HepMC::GenEvent(strip_event(evt));
-    print_latex(strip_evt);
-//    evt->print(std::cout);
-//////////////////// WHILE lOOP 
-//    int count =0;
-//    while ( evt ) {
-//        std::cout << std::endl << std::endl << "Event: " << count << std::endl << std::endl;
-//        count ++;
-/////////////////////////////
-        if( evt->valid_beam_particles()){            	
-            std::pair <HepMC::GenParticle *, HepMC::GenParticle *> beam_particles = evt->beam_particles();
-            HepMC::Flow beam1_flow(beam_particles.first );
-            std::cout << "Flow owned by " << beam1_flow.particle_owner()->pdg_id() << std::endl;
-   //         std::cout << "Beam particle 1 has id" << beam_particles.first->pdg_id() << std::endl;
-        }
-        std::vector<HepMC::GenVertex*> pot_iv;
-        // loop over vertices
-        for ( HepMC::GenEvent::vertex_iterator v = evt->vertices_begin(); v != evt->vertices_end(); ++v ) {
-            //loop over parent vertecis
-//            int count_parents =0 ;
-//		    for ( HepMC::GenVertex::particle_iterator mother = (*v)->particles_begin(HepMC::parents);
-//		          mother != (*v)->particles_end(HepMC::parents); 
-//		          ++mother ) {
-//                count_parents++;
-//		    }
-            if((*v)->particles_in_size()==2){ 
-                std::cout << "Hell yeaaahh, got two parents" << std::endl;
-//                (*v)->print();
-                pot_iv.push_back((*v));
-            }
-        }
-//        evt->print();
-        for (unsigned int i = 0; i < pot_iv.size(); i++){
-            if (*(pot_iv[i]->vertices_begin(HepMC::parents)) && (* ( ++ (pot_iv[i]->vertices_begin(HepMC::parents)) ))){
-            HepMC::GenVertex* v1 = (* (pot_iv[i]->vertices_begin(HepMC::parents))) ;
-            HepMC::GenVertex* v2 = (* ( ++ (pot_iv[i]->vertices_begin(HepMC::parents)) )) ;
-		    for ( HepMC::GenVertex::particle_iterator part = v1->particles_begin(HepMC::ancestors);
-		          part != v1->particles_end(HepMC::ancestors); 
-		          ++part ) {
-//                (*part)->print();
-                if((*part)==evt->beam_particles().first ){std::cout << "It worked: vertex" << pot_iv[i]->barcode() <<" particle1 beam1 " <<std::endl ;}
-                if((*part)==evt->beam_particles().second){std::cout << "It worked: vertex" << pot_iv[i]->barcode() <<" particle1 beam2  " <<std::endl ;}
-		    }
-
-		    for ( HepMC::GenVertex::particle_iterator part = v2->particles_begin(HepMC::ancestors);
-		          part != v2->particles_end(HepMC::ancestors); 
-		          ++part ) {
-                if((*part)==evt->beam_particles().first ){std::cout << "It worked: vertex" << pot_iv[i]->barcode() <<" particle2 beam1 " <<std::endl ;}
-                if((*part)==evt->beam_particles().second){std::cout << "It worked: vertex" << pot_iv[i]->barcode() <<" particle2 beam2  " <<std::endl ;}
-		    }
-
-            }
-
-        }
-
-	    // clean up and get next event
-////////////////// WHILE LOOP ///////////////
-//	    delete evt;
-//	    my_events >> evt;
-//    }
-////////////////// WHILE LOOP ///////////////
-    
-}
 
 
 bool interesting_pdg_id(int pdg_id){
@@ -271,8 +194,8 @@ HepMC::GenVertex * find_interaction_vertex(HepMC::GenEvent * evt){
         HepMC::GenParticle *ip1 = *(pot_iv[i]->particles_in_const_begin()); 
         HepMC::GenParticle *ip2 = *(++(pot_iv[i]->particles_in_const_begin())  ); 
         if(ip1->production_vertex() && ip2->production_vertex()){
-            ip1->print();
-            ip2->print();
+//            ip1->print();
+//            ip2->print();
             bool sp1_from_p1= particle_has_ancestor( ip1,p1 ); 
             bool sp1_from_p2= particle_has_ancestor( ip1,p2 ); 
             bool sp2_from_p1= particle_has_ancestor( ip2,p1 ); 
@@ -281,15 +204,15 @@ HepMC::GenVertex * find_interaction_vertex(HepMC::GenEvent * evt){
         }
     }
     if(cand_iv.size()==1){ 
-        std::cout << "Interaction vertex found:" << std::endl;
-        cand_iv[0]->print();
+//        std::cout << "Interaction vertex found:" << std::endl;
+//        cand_iv[0]->print();
         return cand_iv[0];
     }
     else if(cand_iv.size()>1) {
         std::cerr << "Ambigous interaction vertices found:" << std::endl;
         for (unsigned int i = 0 ; i< cand_iv.size(); i++){
-            std::cerr << "Potential vertex candidate " << i << std::endl;
-            cand_iv[i]->print(std::cerr);
+//            std::cerr << "Potential vertex candidate " << i << std::endl;
+//            cand_iv[i]->print(std::cerr);
         }
         return NULL;
     }
@@ -602,40 +525,40 @@ std::pair< std::vector<HepMC::GenParticle*> , std::map<HepMC::GenVertex*, int> >
     }
 }
 
-void print_latex_in_particles(std::vector <HepMC::GenParticle*> in_p){
-        // label the incoming particles "iv"+str(p.barcode), e.g. iv1 if the barcode is 1
-        // output will look like '\fmfleft{iv1,iv3,}'
-        std::stringstream in_vertices;
-        in_vertices << "\\fmfleft{" ;
-        for (unsigned int i=0; i< in_p.size(); i++){
-            in_vertices << "iv" << in_p[i]->barcode(); 
-            if (i< (in_p.size()-1) ) in_vertices << ","; 
-        }
-        in_vertices << "}" ;
-        std::cout << in_vertices.str() << std::endl;
-        // draw the lines: begin vertices are given by code above, the inner vertices are given by
-        // "v"+endvertex(barcode)
-        for (unsigned int i = 0; i< in_p.size(); i++){
-            std::cout << "\\fmf{" 
-                      << pdg_to_line(in_p[i]->pdg_id()) 
-                      << ",lab=$" << pdg_to_label(in_p[i]->pdg_id()) << "$"  
-                      <<"}{"
-                      << "iv" << in_p[i]->barcode() << ","
-                      << "v" << -(in_p[i]->end_vertex()->barcode())
-                      << "}" << std::endl;
-        }
+//void print_latex_in_particles(std::vector <HepMC::GenParticle*> in_p){
+//        // label the incoming particles "iv"+str(p.barcode), e.g. iv1 if the barcode is 1
+//        // output will look like '\fmfleft{iv1,iv3,}'
+//        std::stringstream in_vertices;
+//        in_vertices << "\\fmfleft{" ;
+//        for (unsigned int i=0; i< in_p.size(); i++){
+//            in_vertices << "iv" << in_p[i]->barcode(); 
+//            if (i< (in_p.size()-1) ) in_vertices << ","; 
+//        }
+//        in_vertices << "}" ;
+//        std::cout << in_vertices.str() << std::endl;
+//        // draw the lines: begin vertices are given by code above, the inner vertices are given by
+//        // "v"+endvertex(barcode)
+//        for (unsigned int i = 0; i< in_p.size(); i++){
+//            std::cout << "\\fmf{" 
+//                      << pdg_to_line(in_p[i]->pdg_id()) 
+//                      << ",lab=$" << pdg_to_label(in_p[i]->pdg_id()) << "$"  
+//                      <<"}{"
+//                      << "iv" << in_p[i]->barcode() << ","
+//                      << "v" << -(in_p[i]->end_vertex()->barcode())
+//                      << "}" << std::endl;
+//        }
+//
+//}
 
-}
-
-void print_latex_beam_particles(std::vector <HepMC::GenParticle*> beam_p){
+void print_latex_beam_particles(std::vector <HepMC::GenParticle*> beam_p, std::ostream & os){
         // there by default only two beam particles
         //
         // start vertices 
-        std::cout   <<  "\\fmfleft{iv1,iv2}" << std::endl;
+        os   <<  "\\fmfleft{iv1,iv2}" << std::endl;
         // draw the lines: begin vertices are given by code above, the inner vertices are given by
         // "v"+endvertex(barcode)
         for (unsigned int i = 0; i< 2; i++){
-            std::cout << "\\fmf{" 
+            os        << "\\fmf{" 
                       << pdg_to_line(beam_p[i]->pdg_id()) 
                       << ",lab=$" << pdg_to_label(beam_p[i]->pdg_id()) << "$"  
                       <<"}{"
@@ -645,497 +568,115 @@ void print_latex_beam_particles(std::vector <HepMC::GenParticle*> beam_p){
         }
 }
 
-void print_latex_interm_particles(std::vector <HepMC::GenParticle*> interm_p,std::map<HepMC::GenVertex *, int> level_map ,HepMC::GenEvent * evt){
+void print_latex_interm_particles(std::vector <HepMC::GenParticle*> interm_p,std::map<HepMC::GenVertex *, int> level_map ,
+                HepMC::GenEvent * evt, std::ostream & os){
     // see comments at print_latex_in_particles()
     //only lines
+    std::map<int,std::string> stat_col_mp;
+    stat_col_mp[1]="green";
+    stat_col_mp[2]="red";
+    stat_col_mp[3]="blue";
+
     for (unsigned int i = 0; i< interm_p.size(); i++){
-        std::cout << "\\fmf{" 
+        os        << "\\fmf{" 
                   << pdg_to_line(interm_p[i]->pdg_id()) ;
         if(level_map.count(interm_p[i]->production_vertex()) ){
             int level=level_map[interm_p[i]->production_vertex() ];
             double tension = pow(0.5,level*2);
-        std::cout << ",tension=" << tension;
+        os        << ",tension=" << tension;
         }
-        std::cout << ",lab=$" << pdg_to_label(interm_p[i]->pdg_id()) << "$"  
+        os        << ",lab=$" << pdg_to_label(interm_p[i]->pdg_id()) << "$"  
+                  << ",foreground=" << stat_col_mp[interm_p[i]->status()]
                   <<"}{";
         if (interm_p[i]->pdg_id()>0){
-        std::cout << "v" << -(interm_p[i]->production_vertex()->barcode()) << ","
+        os        << "v" << -(interm_p[i]->production_vertex()->barcode()) << ","
                   << "v" << -(interm_p[i]->end_vertex()->barcode()) ;
         }
         else{
-        std::cout << "v" << -(interm_p[i]->end_vertex()->barcode()) << ","
+        os        << "v" << -(interm_p[i]->end_vertex()->barcode()) << ","
                   << "v" << -(interm_p[i]->production_vertex()->barcode()) ;
         }
-        std::cout << "}" << std::endl;
+        os        << "}" << std::endl;
+        interm_p[i]->print();
     }
     // let the beam particles end at fixed point
     if(evt->valid_beam_particles()){
-        std::cout   << "\\fmfforce{(.2w,.9h)}{"
+        os   << "\\fmfforce{(.2w,.9h)}{"
                     << "v" << -(evt->beam_particles().second->end_vertex()->barcode()) 
                     << "}" << std::endl;
-        std::cout   << "\\fmfforce{(.2w,.1h)}{"
+        os   << "\\fmfforce{(.2w,.1h)}{"
                     << "v" << -(evt->beam_particles().first->end_vertex()->barcode()) 
                     << "}" << std::endl;
     }        
     // let the interaction vertex be at a fixed point
     HepMC::GenVertex * iv = evt->signal_process_vertex();
     if (!iv) iv=find_interaction_vertex(evt);
-    std::cout   << "\\fmfforce{(.3w,.5h)}{"
+    os   << "\\fmfforce{(.3w,.5h)}{"
                 << "v" << -(iv->barcode()) 
                 << "}" << std::endl;
 }
 
-void print_latex_out_particles(std::vector <HepMC::GenParticle*> out_p, std::map<HepMC::GenVertex *, int> level_map, HepMC::GenEvent * evt){
+void print_latex_out_particles(std::vector <HepMC::GenParticle*> out_p, std::map<HepMC::GenVertex *, int> level_map, 
+                HepMC::GenEvent * evt , std::ostream & os){
         // see comments at print_latex_in_particles()
         //vertices
-        std::cout << "\\fmfright{" ;
+        os        << "\\fmfright{" ;
         for (unsigned int i=0; i< out_p.size(); i++){
-            std::cout << "ov" << out_p[i]->barcode();
-            if(i < (out_p.size()-1 )) std::cout << ","; 
+            os        << "ov" << out_p[i]->barcode();
+            if(i < (out_p.size()-1 )) os        << ","; 
         }
-        std::cout << "}" << std::endl;
+        os        << "}" << std::endl;
         //lines takes care of particles and antiparticles
+        std::map<int,std::string> stat_col_mp;
+        stat_col_mp[1]="green";
+        stat_col_mp[2]="red";
+        stat_col_mp[3]="blue";
         for (unsigned int i = 0; i< out_p.size(); i++){
             int level=level_map[out_p[i]->production_vertex() ];
             double tension = pow(0.5,level*2);
-            std::cout << "\\fmf{" 
+            os        << "\\fmf{" 
                       << pdg_to_line(out_p[i]->pdg_id()) 
                       << ",tension=" << tension
-//                      << ",tension=" << 1./(( (double)level_map[out_p[i]->production_vertex() ]) +1.  )
+                      << ",foreground=" << stat_col_mp[out_p[i]->status()]
                       << ",lab=$" << pdg_to_label(out_p[i]->pdg_id()) << "$"  
                       <<"}{";
             if (out_p[i]->pdg_id()>0){
-            std::cout << "v" << -(out_p[i]->production_vertex()->barcode()) << ","
+            os        << "v" << -(out_p[i]->production_vertex()->barcode()) << ","
                       << "ov" << out_p[i]->barcode() ;
             }
             else{
-            std::cout << "ov" << out_p[i]->barcode() << ","
+            os        << "ov" << out_p[i]->barcode() << ","
                       << "v" << -(out_p[i]->production_vertex()->barcode()) ;
             }
-            std::cout << "}" << std::endl;
+            os        << "}" << std::endl;
         }
 }
+void print_latex_doc_default_begin(std::ostream & os){
+    os        << "\\documentclass{article} "<<  std::endl;
+    os        << "\\usepackage{feynmp} "<<  std::endl;
+    os        << "\\usepackage[a4paper,landscape]{geometry} "<<  std::endl;
+    os        << "\\unitlength=1mm "<<  std::endl;
+    os        << "\\begin{document} "<<  std::endl;
+    os        << "\\begin{fmffile}{fmftempl} "<<  std::endl;
+    os        << "\\centering "<<  std::endl;
+    os        << "\\begin{fmfgraph*}(150,150) "<<  std::endl;
+    os        << "\\fmfstraight" << std::endl ;
+}
 
-void print_latex(HepMC::GenEvent* evt){
-//        std::vector <HepMC::GenParticle*> in_p = get_in_particles(evt);
+void print_latex_doc_default_end(std::ostream & os){
+    os        << "\\end{fmfgraph*}"<<  std::endl;
+    os        << "\\end{fmffile}"<<  std::endl;
+    os        << "\\end{document}"<<  std::endl;
+}
+void print_latex(HepMC::GenEvent* evt,std::ostream & os){
         std::vector <HepMC::GenParticle*> beam_p = get_beam_particles(evt);
         std::vector <HepMC::GenParticle*> interm_p = get_interm_particles(evt);
         std::pair< std::vector<HepMC::GenParticle*> , std::map<HepMC::GenVertex*, int> > out_p = get_sorted_out_particles(evt);
-//        print_latex_in_particles(in_p);
-        std::cout << "\\fmfstraight" << std::endl ;
-        print_latex_beam_particles(beam_p);
-        print_latex_interm_particles(interm_p,out_p.second,evt);
-        print_latex_out_particles(out_p.first,out_p.second,evt);
-//        evt->print();
+        print_latex_doc_default_begin(os);
+        print_latex_beam_particles(beam_p,os);
+        print_latex_interm_particles(interm_p,out_p.second,evt,os);
+        print_latex_out_particles(out_p.first,out_p.second,evt,os);
+        print_latex_doc_default_end(os);
 }
-
-void read_testIOGenEvent(std::ostream & os)
-{
-    os << std::endl;
-    os << "basic IO_GenEvent input and output" << std::endl;
-    // declare an input strategy to read the data produced with the 
-    // example_MyPythia - units are GeV and mm
-    HepMC::IO_GenEvent ascii_in("./testIOGenEvent.input",std::ios::in);
-    ascii_in.use_input_units( HepMC::Units::GEV, HepMC::Units::MM );
-    // declare another IO_GenEvent for writing out the good events
-    HepMC::IO_GenEvent ascii_out("testHepMC.out",std::ios::out);
-    // declare an output IO_GenEvent for testing precision
-    HepMC::IO_GenEvent prec_out("testHepMCprecision.out",std::ios::out);
-    prec_out.precision(10);
-    // declare an IO_AsciiParticle for output
-    HepMC::IO_AsciiParticles particle_out("testHepMCParticle.out",std::ios::out);
-    // declare an instance of the event selection predicate
-    IsGoodEvent is_good_event;
-    //........................................EVENT LOOP
-    int icount=0;
-    int num_good_events=0;
-    HepMC::GenEvent* evt = ascii_in.read_next_event();
-    while ( evt ) {
-	++icount;
-	if ( icount%50==1 ) os << "Processing Event Number " << icount
-				      << " its # " << evt->event_number() 
-				      << std::endl;
-	if ( is_good_event(evt) ) {
-	    particleTypes(evt,os);
-	    // verify use_input_units()
-	    evt->write_units(os);
-	    double pim = findPiZero(evt);
-	    os << " pizero mass: " << pim << std::endl;
-	    //
-	    ascii_out << evt;
-	    particle_out << evt;
-	    prec_out << evt;
-	    ++num_good_events;
-	}
-	
-	// clean up and get next event
-	delete evt;
-	ascii_in >> evt;
-    }
-    //........................................PRINT RESULT
-    os << num_good_events << " out of " << icount 
-	      << " processed events passed the cuts. Finished." << std::endl;
-}
-
-void read_testUnits(std::ostream & os)
-{
-    os << std::endl;
-    os << "IO_GenEvent input and output using define_units" << std::endl;
-    // declare an input strategy to read the data produced with the 
-    // example_MyPythia - units are GeV and mm
-    // we DO NOT define input units here, instead we use define_units
-    HepMC::IO_GenEvent ascii_in("./testIOGenEvent.input",std::ios::in);
-    // declare another IO_GenEvent for writing out the good events
-    HepMC::IO_GenEvent ascii_out("testDefineUnits.out",std::ios::out);
-    // declare an instance of the event selection predicate
-    IsGoodEvent is_good_event;
-    //........................................EVENT LOOP
-    int icount=0;
-    int num_good_events=0;
-    HepMC::GenEvent* evt = ascii_in.read_next_event();
-    while ( evt ) {
-	++icount;
-	evt->define_units( HepMC::Units::GEV, HepMC::Units::MM );
-	if ( icount%50==1 ) os << "Processing Event Number " << icount
-				      << " its # " << evt->event_number() 
-				      << std::endl;
-	if ( is_good_event(evt) ) {
-	    // verify define_units()
-	    evt->write_units(os);
-	    double pim = findPiZero(evt);
-	    os << " pizero mass: " << pim << std::endl;
-	    //
-	    particleTypes(evt,os);
-	    ascii_out << evt;
-	    ++num_good_events;
-	}
-	
-	// clean up and get next event
-	delete evt;
-	ascii_in >> evt;
-    }
-    //........................................PRINT RESULT
-    os << num_good_events << " out of " << icount 
-	      << " processed events passed the cuts. Finished." << std::endl;
-}
-
-void read_variousFormats(std::ostream & os)
-{
-    os << std::endl;
-    os << "process varied input" << std::endl;
-    // declare an input strategy 
-    HepMC::IO_GenEvent ascii_in("./testHepMCVarious.input",std::ios::in);
-    ascii_in.use_input_units( HepMC::Units::GEV, HepMC::Units::MM );
-    // declare another IO_GenEvent for writing out the good events
-    HepMC::IO_GenEvent ascii_out("testHepMCVarious.out",std::ios::out);
-    //........................................EVENT LOOP
-    int icount=0;
-    HepMC::GenEvent* evt = ascii_in.read_next_event();
-    while ( evt ) {
-	icount++;
-	double pim;
-	os << "Processing Event Number " << icount
-		  << " its # " << evt->event_number() 
-		  << std::endl;
-	ascii_out << evt;
-	// units should be unknown
-	evt->write_units(os);
-	pim = findPiZero(evt);
-	os << " pizero mass: " << pim << std::endl;
-	if( HepMC::Units::name( evt->momentum_unit() ) == "GEV" ) {
-	    os << " GenEvent units are GeV" << std::endl;
-	    if( pim > 1.0 ) {
-		// presume units are MEV and out of sync
-		os << " pizero units are MeV" << std::endl;
-		repairUnits(evt,HepMC::Units::MEV,HepMC::Units::GEV);
-		// set units to MeV and mm
-		evt->use_units(HepMC::Units::MEV, HepMC::Units::MM);
-		evt->write_units(os);
-		pim = findPiZero(evt);
-		os << " pizero mass: " << pim 
-	        	  << " " << HepMC::Units::name( evt->momentum_unit() ) << std::endl;
-		// convert units to MeV
-		evt->use_units(HepMC::Units::MEV, HepMC::Units::MM);
-		evt->write_units(os);
-		pim = findPiZero(evt);
-		os << " pizero mass: " << pim 
-	        	  << " " << HepMC::Units::name( evt->momentum_unit() ) << std::endl;
-	    } else if( pim > 0.1 ) {
-		// presume units are GEV
-		os << " pizero units are GeV" << std::endl;
-		// set units to GeV and mm
-		evt->use_units(HepMC::Units::GEV, HepMC::Units::MM);
-		evt->write_units(os);
-		pim = findPiZero(evt);
-		os << " pizero mass: " << pim 
-	        	  << " " << HepMC::Units::name( evt->momentum_unit() ) << std::endl;
-		// convert units to MeV
-		evt->use_units(HepMC::Units::MEV, HepMC::Units::MM);
-		evt->write_units(os);
-		pim = findPiZero(evt);
-		os << " pizero mass: " << pim 
-	        	  << " " << HepMC::Units::name( evt->momentum_unit() ) << std::endl;
-	    } else {
-		os << " pizero mass: " << pim 
-	        	  << " is inconsistent with allowed units " << std::endl;
-	    }
-	} else if( HepMC::Units::name( evt->momentum_unit() ) == "MEV" ) {
-	    os << " GenEvent units are MeV" << std::endl;
-	    if( pim > 1.0 ) {
-		// presume units are MEV
-		os << " pizero units are MeV" << std::endl;
-		// set units to MeV and mm
-		evt->use_units(HepMC::Units::MEV, HepMC::Units::MM);
-		evt->write_units(os);
-		pim = findPiZero(evt);
-		os << " pizero mass: " << pim 
-	        	  << " " << HepMC::Units::name( evt->momentum_unit() ) << std::endl;
-		// convert units to MeV
-		evt->use_units(HepMC::Units::MEV, HepMC::Units::MM);
-		evt->write_units(os);
-		pim = findPiZero(evt);
-		os << " pizero mass: " << pim 
-	        	  << " " << HepMC::Units::name( evt->momentum_unit() ) << std::endl;
-	    } else if( pim > 0.1 ) {
-		// presume units are GEV and out of sync
-		os << " pizero units are GeV" << std::endl;
-		repairUnits(evt,HepMC::Units::GEV,HepMC::Units::MEV);
-		evt->write_units(os);
-		pim = findPiZero(evt);
-		os << " pizero mass: " << pim 
-	        	  << " " << HepMC::Units::name( evt->momentum_unit() ) << std::endl;
-		// convert units to MeV
-		evt->use_units(HepMC::Units::MEV, HepMC::Units::MM);
-		evt->write_units(os);
-		pim = findPiZero(evt);
-		os << " pizero mass: " << pim 
-	        	  << " " << HepMC::Units::name( evt->momentum_unit() ) << std::endl;
-	    } else {
-		os << " pizero mass: " << pim 
-	        	  << " is inconsistent with allowed units " << std::endl;
-	    }
-	}
-	// clean up and get next event
-	delete evt;
-	ascii_in >> evt;
-    }
-    std::cout << "testHepMC: the HeavyIon and PdfInfo input stream errors are intentional" << std::endl;
-    //........................................PRINT RESULT
-    os << icount << " events processed. Finished." << std::endl;
-}
-
-void writeWithCrossSection(std::ostream & os)
-{
-    // declare an input strategy to read input data 
-    // units are GeV and mm
-    HepMC::IO_GenEvent ascii_in("./testIOGenEvent.input",std::ios::in);
-    ascii_in.use_input_units( HepMC::Units::GEV, HepMC::Units::MM );
-    // declare another IO_GenEvent for writing out some events
-    HepMC::IO_GenEvent ascii_out("testCrossSection.out",std::ios::out);
-    // declare an output stream for printing events
-    std::ofstream xout( "testCrossSection.cout" );
-    // create an empty GenCrossSection object
-    HepMC::GenCrossSection cross;
-    //........................................EVENT LOOP
-    int icount=0;
-    const double xs0 = 0.00346;
-    const double xs1 = 0.12;
-    const double xs2 = 33.234;
-    const double xs3 = 459.345;
-    double xserr = 0.0001;
-    double wgt1, wgt2;
-    HepMC::GenEvent* evt = ascii_in.read_next_event();
-    while ( evt ) {
-	icount++;
-	// use a variety of arbitrary cross section values
-	if( icount < 10 ) {
-	    const double xs = xs0 - 1.34 * xserr;
-	    cross.set_cross_section( xs, xserr );
-	} else if( icount < 20 ) {
-	    const double xs = xs1 - 1.34 * xserr;
-	    cross.set_cross_section( xs, xserr );
-	} else if( icount < 30 ) {
-	    const double xs = xs2 - 1.34 * xserr;
-	    cross.set_cross_section( xs, xserr );
-	} else {
-	    const double xs = xs3 - 1.34 * xserr;
-	    cross.set_cross_section( xs, xserr );
-	}
-	xserr *= 0.99;
-	if ( icount == 10 ) xserr += 0.01;
-	if ( icount == 20 ) xserr += 0.4;
-	if ( icount == 30 ) xserr += 1.0;
-	// attach this cross section to the event
-	evt->set_cross_section( cross );
-	evt->write_cross_section(os);
-	// add weights
-	wgt1 = 0.9853 + (double)icount * 0.00033;
-	wgt2 = 0.9853 + (double)(icount+1) * 0.00033;
-	evt->weights().push_back(0.3456);
-	evt->weights()["weightName"] = wgt1;
-	evt->weights()["second weight name"] = wgt2;
-	if ( icount%20==1 ) {
-	    os << "writeWithCrossSection: Processing Event Number " << icount
-				      << " its # " << evt->event_number() 
-				      << std::endl;
-	    ascii_out << evt;
-	    evt->print(xout);
-	}
-	
-	// clean up and get next event
-	delete evt;
-	ascii_in >> evt;
-    }
-    //........................................PRINT RESULT
-    os << "writeWithCrossSection processed " << icount << " events. Finished." << std::endl;
-}
-
-void readWithCrossSection(std::ostream & os)
-{
-    // read the file we just wrote
-    HepMC::IO_GenEvent ascii_in("testCrossSection.out",std::ios::in);
-    // declare another IO_GenEvent for writing out some events
-    HepMC::IO_GenEvent ascii_out("testCrossSection2.out",std::ios::out);
-    //........................................EVENT LOOP
-    int icount=0;
-    HepMC::GenEvent* evt = ascii_in.read_next_event();
-    while ( evt ) {
-	++icount;
-	os << "readWithCrossSection: Processing Event Number " << icount
-				  << " its # " << evt->event_number() 
-				  << std::endl;
-	if (evt->cross_section()->cross_section() <= 0) {
-          os << "testReadCrossSection: invalid cross-section!" << std::endl;
-	}
-	ascii_out << evt;
-	
-	// clean up and get next event
-	delete evt;
-	ascii_in >> evt;
-    }
-    //........................................PRINT RESULT
-    os << "readWithCrossSection processed " << icount << " events. Finished." << std::endl;
-}
-
-void read_nan(std::ostream & os)
-{
-    // Read an input file that has corrupt information (nan's)
-    //
-    HepMC::IO_GenEvent xin("./testHepMCVarious.input",std::ios::in);
-    HepMC::IO_GenEvent xout("testNaN.out",std::ios::out);
-    // set input units
-    xin.use_input_units( HepMC::Units::GEV, HepMC::Units::MM );
-    //........................................EVENT LOOP
-    int icount=0;
-    int invaliddata=0;
-    bool ok = true;
-    os << "---------------------------------------- " << std::endl;
-    os << "Begin NaN test " << std::endl;
-    HepMC::GenEvent* evt = xin.read_next_event();
-    //
-    // To recover from corrupt input, replace "while(evt) {...}" 
-    // with  "while(ok) { if(evt) {... xin >> evt;} else {...} }"
-    //
-    while ( ok ) {
-	if( evt ) {
-	    ++icount;
-	    os << "read_nan: Processing Event Number " << icount
-		      << " its # " << evt->event_number() 
-		      << std::endl;
-	    xout << evt;
-	    // clean up and get next event
-	    delete evt;
-	    xin >> evt;
-	} else if (xin.error_type() == HepMC::IO_Exception::InvalidData ) {
-	    ++invaliddata;
-            os << "INPUT ERROR: " << xin.error_message() << std::endl;
-	    // clean up and get next event
-	    delete evt;
-	    xin >> evt;
-	} else if (invaliddata > 50 ) {
-            os << "INPUT ERROR: " << xin.error_message() << std::endl;
-	    ok = false;
-	} else {
-	    ok = false;
-	}
-    }
-    // print status of input stream
-    if ( xin.error_type() != 0 ) {
-        os << "processing of ./testHepMCVarious.input ended with error " 
-	          << xin.error_type() << std::endl;
-        os << "  --- " << xin.error_message() << std::endl;
-    }
-    os << icount << " events processed and " 
-              << invaliddata << " events ignored. Finished." 
-              << std::endl;
-    os << "End NaN test " << std::endl;
-    os << "---------------------------------------- " << std::endl;
-}
-
-void writeWithWeight(std::ostream & os)
-{
-    // declare an input strategy to read input data 
-    // units are GeV and mm
-    HepMC::IO_GenEvent ascii_in("./testIOGenEvent.input",std::ios::in);
-    ascii_in.use_input_units( HepMC::Units::GEV, HepMC::Units::MM );
-    // declare another IO_GenEvent for writing out some events
-    HepMC::IO_GenEvent ascii_out("testWithWeight.out",std::ios::out);
-    // declare an output stream for printing events
-    std::ofstream xout( "testWithWeight.cout" );
-    //........................................EVENT LOOP
-    int icount=0;
-    double wgt1, wgt2;
-    HepMC::GenEvent* evt = ascii_in.read_next_event();
-    while ( evt ) {
-	icount++;
-	// add weights
-	wgt1 = 0.9853 + (double)icount * 0.00033;
-	wgt2 = 0.9853 + (double)(icount+1) * 0.00033;
-	evt->weights().push_back(0.3456);
-	evt->weights().push_back(wgt1);
-	evt->weights().push_back(wgt2);
-	if ( icount%20==1 ) {
-	    os << "writeWithWeight: Processing Event Number " << icount
-				      << " its # " << evt->event_number() 
-				      << std::endl;
-	    ascii_out << evt;
-	    evt->print(xout);
-	}
-	
-	// clean up and get next event
-	delete evt;
-	ascii_in >> evt;
-    }
-    //........................................PRINT RESULT
-    os << "writeWithWeight processed " << icount << " events. Finished." << std::endl;
-}
-
-void readWithWeight(std::ostream & os)
-{
-    // read the file we just wrote
-    HepMC::IO_GenEvent ascii_in("testWithWeight.out",std::ios::in);
-    // declare another IO_GenEvent for writing out some events
-    HepMC::IO_GenEvent ascii_out("testWithWeight2.out",std::ios::out);
-    //........................................EVENT LOOP
-    int icount=0;
-    HepMC::GenEvent* evt = ascii_in.read_next_event();
-    while ( evt ) {
-	++icount;
-	os << "readWithWeight: Processing Event Number " << icount
-				  << " its # " << evt->event_number() 
-				  << std::endl;
-	if ( !evt->cross_section() ) {
-          os << "testReadCrossSection: invalid cross-section!" << std::endl;
-	}
-	ascii_out << evt;
-	
-	// clean up and get next event
-	delete evt;
-	ascii_in >> evt;
-    }
-    //........................................PRINT RESULT
-    os << "readWithWeight processed " << icount << " events. Finished." << std::endl;
-}
-
 
 
