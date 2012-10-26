@@ -1,1 +1,12 @@
 *~
+*.tex
+*.1
+*.log
+*.t1
+*.txt
+*.aux
+*.dvi
+*.log
+*.pdf
+# specific file that get generated here!!
+fmftempl.mp

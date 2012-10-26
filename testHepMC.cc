@@ -17,20 +17,26 @@
 #include "IsGoodEvent.h"
 #include "testHepMCMethods.h"
 #include <sstream>
+#include <fstream>
 #include <list>
 #include <cmath>
+#include <iostream>
 
 
 void find_protons();
-void my_main();
+void my_main(std::string hepmcfile, const char * texfile,int n);
 std::vector<HepMC::GenParticle*> get_in_particles(HepMC::GenEvent* evt);
 std::vector<HepMC::GenParticle*> get_interm_particles(HepMC::GenEvent* evt);
 std::vector<HepMC::GenParticle*> get_out_particles(HepMC::GenEvent* evt);
-void print_latex(HepMC::GenEvent* evt);
-void print_latex_in_particles(std::vector <HepMC::GenParticle*> in_p);
-void print_latex_beam_particles(std::vector <HepMC::GenParticle*> beam_p);
-void print_latex_interm_particles(std::vector <HepMC::GenParticle*> interm_p,std::map<HepMC::GenVertex *, int> level_map, HepMC::GenEvent * evt);
-void print_latex_out_particles(std::vector <HepMC::GenParticle*> out_p, std::map<HepMC::GenVertex *, int> level_map, HepMC::GenEvent * evt);
+void print_latex(HepMC::GenEvent* evt,std::ostream & os);
+//void print_latex_in_particles(std::vector <HepMC::GenParticle*> in_p);
+void print_latex_beam_particles(std::vector <HepMC::GenParticle*> beam_p,std::ostream & os);
+void print_latex_interm_particles(std::vector <HepMC::GenParticle*> interm_p,std::map<HepMC::GenVertex *, 
+                int> level_map, HepMC::GenEvent * evt,std::ostream & os );
+void print_latex_out_particles(std::vector <HepMC::GenParticle*> out_p, std::map<HepMC::GenVertex *, int> level_map, 
+                HepMC::GenEvent * evt, std::ostream & os);
+void print_latex_doc_default_begin(std::ostream & os);
+void print_latex_doc_default_end(std::ostream & os);
 std::string  pdg_to_line(int pdg_id);
 HepMC::GenEvent  strip_event(HepMC::GenEvent* evt);
 void recur_copy_particles(HepMC::GenVertex * v_in, HepMC::GenEvent* evt);
@@ -44,15 +50,30 @@ bool interesting_end_vertex(HepMC::GenParticle * p);
 void recursive_sort_out_particles(HepMC::GenVertex * curr_v, int curr_lev, 
                                         std::map<HepMC::GenVertex *, int > & v_map, std::vector<HepMC::GenParticle* > & p_out );
 
-int main() { 
-    my_main();
+
+int main(int argc, char* argv[]){
+    char ch;
+    std::string hepmcfile;
+    char * outfile = "";
+    int n;
+    while ( ( ch = getopt(argc,argv, "i:n:o:") ) != -1 ) {
+        switch (ch) {
+            case 'i': hepmcfile   = optarg ;break;
+            case 'o': outfile     = optarg ;break;
+            case 'n': n           = atoi(optarg); break;
+            default: std::cerr << "*** Error: unknown option " << optarg << std::endl;
+        }
+    }
+    const char * texfile = outfile;
+    if (!(argc==7)) std::cerr << "*** Error: give two arguments" << std::endl;
+    else my_main(hepmcfile,texfile , n);
     return 0;
 }
 
-void my_main(){
-    HepMC::IO_GenEvent my_events( "./pythia-output.hepmc" ,std::ios::in);
-//    HepMC::IO_GenEvent my_events( "./testFlow.out3" ,std::ios::in);
-//    HepMC::IO_GenEvent my_events( "./testIOGenEvent.input" ,std::ios::in);
+void my_main(std::string hepmcfile, const char * tex_file ,int n){
+    HepMC::IO_GenEvent my_events( hepmcfile ,std::ios::in);
+    std::ofstream latex_stream ( tex_file );
+
     my_events.use_input_units( HepMC::Units::GEV, HepMC::Units::MM );
     HepMC::GenEvent* evt = my_events.read_next_event();
 ////////////////// WHILE lOOP 
@@ -61,10 +82,11 @@ void my_main(){
 //        std::cout << std::endl << std::endl << "Event: " << count << std::endl << std::endl;
         count ++;
 ///////////////////////////
-        if (count==25){
+        if (count==n){
+//            evt->print();
             evt->print();
             HepMC::GenEvent* strip_evt = new HepMC::GenEvent(strip_event(evt));
-            print_latex(strip_evt);
+            print_latex(strip_evt,latex_stream);
         }
 //////////////// WHILE LOOP ///////////////
 	    delete evt;
@@ -172,8 +194,8 @@ HepMC::GenVertex * find_interaction_vertex(HepMC::GenEvent * evt){
         HepMC::GenParticle *ip1 = *(pot_iv[i]->particles_in_const_begin()); 
         HepMC::GenParticle *ip2 = *(++(pot_iv[i]->particles_in_const_begin())  ); 
         if(ip1->production_vertex() && ip2->production_vertex()){
-            ip1->print();
-            ip2->print();
+//            ip1->print();
+//            ip2->print();
             bool sp1_from_p1= particle_has_ancestor( ip1,p1 ); 
             bool sp1_from_p2= particle_has_ancestor( ip1,p2 ); 
             bool sp2_from_p1= particle_has_ancestor( ip2,p1 ); 
@@ -182,15 +204,15 @@ HepMC::GenVertex * find_interaction_vertex(HepMC::GenEvent * evt){
         }
     }
     if(cand_iv.size()==1){ 
-        std::cout << "Interaction vertex found:" << std::endl;
-        cand_iv[0]->print();
+//        std::cout << "Interaction vertex found:" << std::endl;
+//        cand_iv[0]->print();
         return cand_iv[0];
     }
     else if(cand_iv.size()>1) {
         std::cerr << "Ambigous interaction vertices found:" << std::endl;
         for (unsigned int i = 0 ; i< cand_iv.size(); i++){
-            std::cerr << "Potential vertex candidate " << i << std::endl;
-            cand_iv[i]->print(std::cerr);
+//            std::cerr << "Potential vertex candidate " << i << std::endl;
+//            cand_iv[i]->print(std::cerr);
         }
         return NULL;
     }
@@ -503,40 +525,40 @@ std::pair< std::vector<HepMC::GenParticle*> , std::map<HepMC::GenVertex*, int> >
     }
 }
 
-void print_latex_in_particles(std::vector <HepMC::GenParticle*> in_p){
-        // label the incoming particles "iv"+str(p.barcode), e.g. iv1 if the barcode is 1
-        // output will look like '\fmfleft{iv1,iv3,}'
-        std::stringstream in_vertices;
-        in_vertices << "\\fmfleft{" ;
-        for (unsigned int i=0; i< in_p.size(); i++){
-            in_vertices << "iv" << in_p[i]->barcode(); 
-            if (i< (in_p.size()-1) ) in_vertices << ","; 
-        }
-        in_vertices << "}" ;
-        std::cout << in_vertices.str() << std::endl;
-        // draw the lines: begin vertices are given by code above, the inner vertices are given by
-        // "v"+endvertex(barcode)
-        for (unsigned int i = 0; i< in_p.size(); i++){
-            std::cout << "\\fmf{" 
-                      << pdg_to_line(in_p[i]->pdg_id()) 
-                      << ",lab=$" << pdg_to_label(in_p[i]->pdg_id()) << "$"  
-                      <<"}{"
-                      << "iv" << in_p[i]->barcode() << ","
-                      << "v" << -(in_p[i]->end_vertex()->barcode())
-                      << "}" << std::endl;
-        }
+//void print_latex_in_particles(std::vector <HepMC::GenParticle*> in_p){
+//        // label the incoming particles "iv"+str(p.barcode), e.g. iv1 if the barcode is 1
+//        // output will look like '\fmfleft{iv1,iv3,}'
+//        std::stringstream in_vertices;
+//        in_vertices << "\\fmfleft{" ;
+//        for (unsigned int i=0; i< in_p.size(); i++){
+//            in_vertices << "iv" << in_p[i]->barcode(); 
+//            if (i< (in_p.size()-1) ) in_vertices << ","; 
+//        }
+//        in_vertices << "}" ;
+//        std::cout << in_vertices.str() << std::endl;
+//        // draw the lines: begin vertices are given by code above, the inner vertices are given by
+//        // "v"+endvertex(barcode)
+//        for (unsigned int i = 0; i< in_p.size(); i++){
+//            std::cout << "\\fmf{" 
+//                      << pdg_to_line(in_p[i]->pdg_id()) 
+//                      << ",lab=$" << pdg_to_label(in_p[i]->pdg_id()) << "$"  
+//                      <<"}{"
+//                      << "iv" << in_p[i]->barcode() << ","
+//                      << "v" << -(in_p[i]->end_vertex()->barcode())
+//                      << "}" << std::endl;
+//        }
+//
+//}
 
-}
-
-void print_latex_beam_particles(std::vector <HepMC::GenParticle*> beam_p){
+void print_latex_beam_particles(std::vector <HepMC::GenParticle*> beam_p, std::ostream & os){
         // there by default only two beam particles
         //
         // start vertices 
-        std::cout   <<  "\\fmfleft{iv1,iv2}" << std::endl;
+        os   <<  "\\fmfleft{iv1,iv2}" << std::endl;
         // draw the lines: begin vertices are given by code above, the inner vertices are given by
         // "v"+endvertex(barcode)
         for (unsigned int i = 0; i< 2; i++){
-            std::cout << "\\fmf{" 
+            os        << "\\fmf{" 
                       << pdg_to_line(beam_p[i]->pdg_id()) 
                       << ",lab=$" << pdg_to_label(beam_p[i]->pdg_id()) << "$"  
                       <<"}{"
@@ -546,84 +568,115 @@ void print_latex_beam_particles(std::vector <HepMC::GenParticle*> beam_p){
         }
 }
 
-void print_latex_interm_particles(std::vector <HepMC::GenParticle*> interm_p,std::map<HepMC::GenVertex *, int> level_map ,HepMC::GenEvent * evt){
+void print_latex_interm_particles(std::vector <HepMC::GenParticle*> interm_p,std::map<HepMC::GenVertex *, int> level_map ,
+                HepMC::GenEvent * evt, std::ostream & os){
     // see comments at print_latex_in_particles()
     //only lines
+    std::map<int,std::string> stat_col_mp;
+    stat_col_mp[1]="green";
+    stat_col_mp[2]="red";
+    stat_col_mp[3]="blue";
+
     for (unsigned int i = 0; i< interm_p.size(); i++){
-        std::cout << "\\fmf{" 
+        os        << "\\fmf{" 
                   << pdg_to_line(interm_p[i]->pdg_id()) ;
         if(level_map.count(interm_p[i]->production_vertex()) ){
             int level=level_map[interm_p[i]->production_vertex() ];
             double tension = pow(0.5,level*2);
-        std::cout << ",tension=" << tension;
+        os        << ",tension=" << tension;
         }
-        std::cout << ",lab=$" << pdg_to_label(interm_p[i]->pdg_id()) << "$"  
+        os        << ",lab=$" << pdg_to_label(interm_p[i]->pdg_id()) << "$"  
+                  << ",foreground=" << stat_col_mp[interm_p[i]->status()]
                   <<"}{";
         if (interm_p[i]->pdg_id()>0){
-        std::cout << "v" << -(interm_p[i]->production_vertex()->barcode()) << ","
+        os        << "v" << -(interm_p[i]->production_vertex()->barcode()) << ","
                   << "v" << -(interm_p[i]->end_vertex()->barcode()) ;
         }
         else{
-        std::cout << "v" << -(interm_p[i]->end_vertex()->barcode()) << ","
+        os        << "v" << -(interm_p[i]->end_vertex()->barcode()) << ","
                   << "v" << -(interm_p[i]->production_vertex()->barcode()) ;
         }
-        std::cout << "}" << std::endl;
+        os        << "}" << std::endl;
+        interm_p[i]->print();
     }
     // let the beam particles end at fixed point
     if(evt->valid_beam_particles()){
-        std::cout   << "\\fmfforce{(.2w,.9h)}{"
+        os   << "\\fmfforce{(.2w,.9h)}{"
                     << "v" << -(evt->beam_particles().second->end_vertex()->barcode()) 
                     << "}" << std::endl;
-        std::cout   << "\\fmfforce{(.2w,.1h)}{"
+        os   << "\\fmfforce{(.2w,.1h)}{"
                     << "v" << -(evt->beam_particles().first->end_vertex()->barcode()) 
                     << "}" << std::endl;
     }        
     // let the interaction vertex be at a fixed point
     HepMC::GenVertex * iv = evt->signal_process_vertex();
     if (!iv) iv=find_interaction_vertex(evt);
-    std::cout   << "\\fmfforce{(.3w,.5h)}{"
+    os   << "\\fmfforce{(.3w,.5h)}{"
                 << "v" << -(iv->barcode()) 
                 << "}" << std::endl;
 }
 
-void print_latex_out_particles(std::vector <HepMC::GenParticle*> out_p, std::map<HepMC::GenVertex *, int> level_map, HepMC::GenEvent * evt){
+void print_latex_out_particles(std::vector <HepMC::GenParticle*> out_p, std::map<HepMC::GenVertex *, int> level_map, 
+                HepMC::GenEvent * evt , std::ostream & os){
         // see comments at print_latex_in_particles()
         //vertices
-        std::cout << "\\fmfright{" ;
+        os        << "\\fmfright{" ;
         for (unsigned int i=0; i< out_p.size(); i++){
-            std::cout << "ov" << out_p[i]->barcode();
-            if(i < (out_p.size()-1 )) std::cout << ","; 
+            os        << "ov" << out_p[i]->barcode();
+            if(i < (out_p.size()-1 )) os        << ","; 
         }
-        std::cout << "}" << std::endl;
+        os        << "}" << std::endl;
         //lines takes care of particles and antiparticles
+        std::map<int,std::string> stat_col_mp;
+        stat_col_mp[1]="green";
+        stat_col_mp[2]="red";
+        stat_col_mp[3]="blue";
         for (unsigned int i = 0; i< out_p.size(); i++){
             int level=level_map[out_p[i]->production_vertex() ];
             double tension = pow(0.5,level*2);
-            std::cout << "\\fmf{" 
+            os        << "\\fmf{" 
                       << pdg_to_line(out_p[i]->pdg_id()) 
                       << ",tension=" << tension
+                      << ",foreground=" << stat_col_mp[out_p[i]->status()]
                       << ",lab=$" << pdg_to_label(out_p[i]->pdg_id()) << "$"  
                       <<"}{";
             if (out_p[i]->pdg_id()>0){
-            std::cout << "v" << -(out_p[i]->production_vertex()->barcode()) << ","
+            os        << "v" << -(out_p[i]->production_vertex()->barcode()) << ","
                       << "ov" << out_p[i]->barcode() ;
             }
             else{
-            std::cout << "ov" << out_p[i]->barcode() << ","
+            os        << "ov" << out_p[i]->barcode() << ","
                       << "v" << -(out_p[i]->production_vertex()->barcode()) ;
             }
-            std::cout << "}" << std::endl;
+            os        << "}" << std::endl;
         }
 }
+void print_latex_doc_default_begin(std::ostream & os){
+    os        << "\\documentclass{article} "<<  std::endl;
+    os        << "\\usepackage{feynmp} "<<  std::endl;
+    os        << "\\usepackage[a4paper,landscape]{geometry} "<<  std::endl;
+    os        << "\\unitlength=1mm "<<  std::endl;
+    os        << "\\begin{document} "<<  std::endl;
+    os        << "\\begin{fmffile}{fmftempl} "<<  std::endl;
+    os        << "\\centering "<<  std::endl;
+    os        << "\\begin{fmfgraph*}(150,150) "<<  std::endl;
+    os        << "\\fmfstraight" << std::endl ;
+}
 
-void print_latex(HepMC::GenEvent* evt){
+void print_latex_doc_default_end(std::ostream & os){
+    os        << "\\end{fmfgraph*}"<<  std::endl;
+    os        << "\\end{fmffile}"<<  std::endl;
+    os        << "\\end{document}"<<  std::endl;
+}
+void print_latex(HepMC::GenEvent* evt,std::ostream & os){
         std::vector <HepMC::GenParticle*> beam_p = get_beam_particles(evt);
         std::vector <HepMC::GenParticle*> interm_p = get_interm_particles(evt);
         std::pair< std::vector<HepMC::GenParticle*> , std::map<HepMC::GenVertex*, int> > out_p = get_sorted_out_particles(evt);
-        std::cout << "\\fmfstraight" << std::endl ;
-        print_latex_beam_particles(beam_p);
-        print_latex_interm_particles(interm_p,out_p.second,evt);
-        print_latex_out_particles(out_p.first,out_p.second,evt);
+        print_latex_doc_default_begin(os);
+        print_latex_beam_particles(beam_p,os);
+        print_latex_interm_particles(interm_p,out_p.second,evt,os);
+        print_latex_out_particles(out_p.first,out_p.second,evt,os);
+        print_latex_doc_default_end(os);
 }
 
 
