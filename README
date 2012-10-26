@@ -1,0 +1,13 @@
+26/10/2012: Kees Jan de Vries
+
+For this functionality to work, you need to install HepMC
+go to icgapp.cern.ch/project/simu/HepMC/download/
+Click on "source" on the right.
+
+Go into the directory "HepMC-*.*.*" and do "make"
+Then go into the "test" directory and do "make"
+
+Upon running compile.sh, the file testHepMC.cc will be copied to the
+HepMC-*.*.*/test/ directory, and then compiled
+please SPECIFY this directory compile.sh
+
