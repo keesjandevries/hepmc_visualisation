@@ -87,6 +87,7 @@ void my_main(std::string hepmcfile, const char * tex_file ,int n){
             evt->print();
             HepMC::GenEvent* strip_evt = new HepMC::GenEvent(strip_event(evt));
             print_latex(strip_evt,latex_stream);
+            break;
         }
 //////////////// WHILE LOOP ///////////////
 	    delete evt;
