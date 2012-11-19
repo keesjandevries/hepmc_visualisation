@@ -1,13 +1,27 @@
 26/10/2012: Kees Jan de Vries
 
+Complilation:
+============
+
 For this functionality to work, you need to install HepMC
 go to icgapp.cern.ch/project/simu/HepMC/download/
 Click on "source" on the right.
 
-Go into the directory "HepMC-*.*.*" and do "make"
-Then go into the "test" directory and do "make"
+Install HepMC-*.*.* as usual:
+- untar
+- go in directory
+- configure with the momentum and length specified, e.g. "./configure --with-momentum=GEV --with-length=MM"
+- make
 
-Upon running compile.sh, the file testHepMC.cc will be copied to the
-HepMC-*.*.*/test/ directory, and then compiled
-please SPECIFY this directory compile.sh
 
+Then install this package:
+- go back to hepmc_visualisation
+- open compile.sh and change the  "HepMC-*.*.*/test/" - directory
+- do ./compile.sh (the file ./testHepMC.cc gets copied into HepMC-*.*.*/test/ and compiles there) 
+
+Usage:
+=====
+- changes can be made in testHepMC.cc
+- change and run "run.sh" 
+- run latex_test.sh (press q if an error is thrown)
+- open test.pdf
